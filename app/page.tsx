@@ -18,6 +18,9 @@ import { FieldMapper } from "@/app/field-mapper";
 import { ComparisonView } from "@/app/comparison-view";
 import { SafeDiamondsTable } from "@/app/safe-diamonds-table";
 import { fieldMapping } from "@/lib/mapping";
+import { Select, SelectItem } from "@/components/ui/select";
+import { IgnoreFieldsSelect } from "@/components/ui/IgnoreFieldsSelect";
+import { Checkbox } from "@/components/ui/checkbox";
 // import { fieldMapping } from "@/lib/mapping";
 
 export default function DiamondComparison() {
@@ -29,6 +32,7 @@ export default function DiamondComparison() {
     new: { headers: [], data: [] },
   });
   // const [fieldMapping, setFieldMapping] = useState<Record<string, string>>({});
+  const [ignoredFields, setIgnoredFields] = useState<string[]>([]);
   const [mappingConfirmed, setMappingConfirmed] = useState(false);
   const [comparisonResults, setComparisonResults] = useState<{
     changed: any[];
@@ -36,6 +40,8 @@ export default function DiamondComparison() {
     notFound?: any[];
   }>({ changed: [], unchanged: [] });
   const [activeTab, setActiveTab] = useState("upload");
+  const [showOnlyChangedColumns, setShowOnlyChangedColumns] =
+    useState<boolean>(false);
 
   // const handleOldFileUpload = async (file: File) => {
   //   try {
@@ -368,6 +374,93 @@ export default function DiamondComparison() {
   //   setComparisonResults({ changed, unchanged, notFound });
   // };
 
+  // ------  22222
+  // const compareData = () => {
+  //   setMappingConfirmed(true);
+  //   if (!fieldMapping) return;
+  //   if (!data.old.data.length || !data.new.data.length) return;
+
+  //   const changed: any[] = [];
+  //   const unchanged: any[] = [];
+  //   const notFound: any[] = [];
+
+  //   const oldSpecialNumberField = "Packet Id";
+  //   const newSpecialNumberField = "Stock ID";
+
+  //   // Convert old data into a Map for quick lookup
+  //   const oldDataMap = new Map(
+  //     data.old.data.map((item) => [String(item[oldSpecialNumberField]), item])
+  //   );
+
+  //   // Chunk processing variables
+  //   const batchSize = 1000; // Process 1000 diamonds at a time
+  //   let index = 0;
+
+  //   const processChunk = () => {
+  //     const chunk = data.new.data.slice(index, index + batchSize);
+
+  //     chunk.forEach((newItem) => {
+  //       const specialNumber = String(newItem[newSpecialNumberField]);
+  //       const oldItem = oldDataMap.get(specialNumber);
+
+  //       if (
+  //         !specialNumber ||
+  //         specialNumber === "undefined" ||
+  //         specialNumber === "null"
+  //       ) {
+  //         notFound.push(newItem);
+  //         return;
+  //       }
+
+  //       if (!oldItem) {
+  //         changed.push({
+  //           newData: newItem,
+  //           oldData: null,
+  //           changes: ["New entry"],
+  //         });
+  //         return;
+  //       }
+
+  //       // Check for differences
+  //       const differences = Object.entries(fieldMapping)
+  //         .map(([oldField, newField]) => {
+  //           const oldValue = String(oldItem[oldField] || "").trim();
+  //           const newValue = String(newItem[newField] || "").trim();
+  //           return oldValue !== newValue
+  //             ? { field: oldField, oldValue, newValue }
+  //             : null;
+  //         })
+  //         .filter(Boolean);
+
+  //       if (differences.length > 0) {
+  //         changed.push({
+  //           newData: newItem,
+  //           oldData: oldItem,
+  //           changes: differences,
+  //         });
+  //       } else {
+  //         unchanged.push(newItem);
+  //       }
+  //     });
+
+  //     index += batchSize;
+
+  //     // Update UI with current results (partial data)
+  //     setComparisonResults({ changed, unchanged, notFound });
+  //     setActiveTab("comparison");
+
+  //     if (index < data.new.data.length) {
+  //       // Schedule next chunk in the next event loop to avoid freezing UI
+  //       setTimeout(processChunk, 0);
+  //     } else {
+  //       console.log("Comparison completed! ✅");
+  //     }
+  //   };
+
+  //   // Start processing in chunks
+  //   processChunk();
+  // };
+
   const compareData = () => {
     setMappingConfirmed(true);
     if (!fieldMapping) return;
@@ -380,13 +473,11 @@ export default function DiamondComparison() {
     const oldSpecialNumberField = "Packet Id";
     const newSpecialNumberField = "Stock ID";
 
-    // Convert old data into a Map for quick lookup
     const oldDataMap = new Map(
       data.old.data.map((item) => [String(item[oldSpecialNumberField]), item])
     );
 
-    // Chunk processing variables
-    const batchSize = 1000; // Process 1000 diamonds at a time
+    const batchSize = 1000;
     let index = 0;
 
     const processChunk = () => {
@@ -414,8 +505,9 @@ export default function DiamondComparison() {
           return;
         }
 
-        // Check for differences
+        // Compare excluding ignored fields
         const differences = Object.entries(fieldMapping)
+          .filter(([_, newField]) => !ignoredFields.includes(newField))
           .map(([oldField, newField]) => {
             const oldValue = String(oldItem[oldField] || "").trim();
             const newValue = String(newItem[newField] || "").trim();
@@ -437,20 +529,16 @@ export default function DiamondComparison() {
       });
 
       index += batchSize;
-
-      // Update UI with current results (partial data)
       setComparisonResults({ changed, unchanged, notFound });
       setActiveTab("comparison");
 
       if (index < data.new.data.length) {
-        // Schedule next chunk in the next event loop to avoid freezing UI
         setTimeout(processChunk, 0);
       } else {
-        console.log("Comparison completed! ✅");
+        console.log("✅ Comparison complete.");
       }
     };
 
-    // Start processing in chunks
     processChunk();
   };
 
@@ -553,18 +641,44 @@ export default function DiamondComparison() {
         <TabsContent value="comparison">
           <div className="space-y-6">
             <Card>
-              <CardHeader>
-                <CardTitle>
-                  Changed Diamonds ({comparisonResults.changed.length})
-                </CardTitle>
-                <CardDescription>
-                  Diamonds with differences between the old and new files
-                </CardDescription>
-              </CardHeader>
+              <div className="flex items-center justify-between p-4">
+                <CardHeader>
+                  <CardTitle>
+                    Changed Diamonds ({comparisonResults.changed.length})
+                  </CardTitle>
+                  <CardDescription>
+                    Diamonds with differences between the old and new files
+                  </CardDescription>
+                </CardHeader>
+                <div className="flex gap-4 items-center">
+                  <IgnoreFieldsSelect
+                    options={data.new.headers}
+                    selected={ignoredFields}
+                    onChange={setIgnoredFields}
+                  />
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="show-only-changed-columns"
+                      checked={showOnlyChangedColumns}
+                      onCheckedChange={(value) =>
+                        setShowOnlyChangedColumns(!!value)
+                      }
+                    />
+                    <label
+                      htmlFor="show-only-changed-columns"
+                      className="text-sm"
+                    >
+                      Show only changed columns
+                    </label>
+                  </div>
+                </div>
+              </div>
               <CardContent>
                 <ComparisonView
                   changedDiamonds={comparisonTableData}
                   fieldMapping={fieldMapping}
+                  ignoredFields={ignoredFields}
+                  showOnlyChangedColumns={showOnlyChangedColumns}
                 />
               </CardContent>
             </Card>
