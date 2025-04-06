@@ -1,53 +1,20 @@
 /** @format */
 
-import { useMemo } from "react";
-import { FixedSizeList as List } from "react-window";
-import { cn } from "@/lib/utils";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import React from "react";
+import React, { useMemo } from "react";
 import { GridTable } from "@/components/ui/gridTable";
 
 interface ComparisonViewProps {
   changedDiamonds: any[];
   fieldMapping: Record<string, string>;
+  ignoredFields: string[];
+  showOnlyChangedColumns: boolean;
 }
-
-const MemoizedRow = React.memo(
-  ({ diamond, fieldKeys }: { diamond: any; fieldKeys: string[][] }) => {
-    return (
-      <TableRow key={diamond.id}>
-        {fieldKeys.map(([oldField, newField]) => {
-          const oldValue = diamond.oldData?.[oldField] ?? "N/A";
-          const newValue = diamond.newData?.[newField] ?? "N/A";
-          const hasChanged =
-            String(oldValue).trim() !== String(newValue).trim();
-
-          return (
-            <React.Fragment key={oldField}>
-              <TableCell className="border p-2">{oldValue}</TableCell>
-              <TableCell
-                className={cn("border p-2", { "bg-red-200": hasChanged })}
-              >
-                {newValue}
-              </TableCell>
-            </React.Fragment>
-          );
-        })}
-      </TableRow>
-    );
-  }
-);
 
 export function ComparisonView({
   changedDiamonds,
   fieldMapping,
+  ignoredFields,
+  showOnlyChangedColumns,
 }: ComparisonViewProps) {
   if (!changedDiamonds.length) {
     return (
@@ -55,41 +22,71 @@ export function ComparisonView({
     );
   }
 
-  const comparisonColumns = useMemo(() => {
-    return Object.entries(fieldMapping).flatMap(([oldField, newField]) => {
-      return [
-        {
-          title: `${oldField} (Old)`,
-          dataIndex: `${newField}_old`,
-          key: `${newField}_old`,
-          width: 80,
-          alignment: "center",
-        },
-        {
-          title: `${newField} (New)`,
-          dataIndex: `${newField}_new`,
-          key: `${newField}_new`,
-          width: 80,
-          alignment: "center",
-          render: (text: string, record: any) => {
-            const oldValue = record[`${newField}_old`] ?? "";
-            const hasChanged = String(oldValue).trim() !== String(text).trim();
+  const changedFieldsSet = useMemo(() => {
+    const fields = new Set<string>();
 
-            return (
-              <div
-                style={{
-                  backgroundColor: hasChanged ? "#fed7d7" : "transparent",
-                  padding: "4px",
-                }}
-              >
-                {text}
-              </div>
-            );
+    for (const diamond of changedDiamonds) {
+      for (const [oldField, newField] of Object.entries(fieldMapping)) {
+        if (ignoredFields.includes(newField)) continue;
+
+        const oldVal = diamond[`${newField}_old`] ?? "";
+        const newVal = diamond[`${newField}_new`] ?? "";
+
+        if (String(oldVal).trim() !== String(newVal).trim()) {
+          fields.add(newField);
+        }
+      }
+    }
+
+    return fields;
+  }, [changedDiamonds, fieldMapping, ignoredFields]);
+
+  const comparisonColumns = useMemo(() => {
+    return Object.entries(fieldMapping)
+      .filter(([_, newField]) => {
+        if (!showOnlyChangedColumns) return true;
+        return changedFieldsSet.has(newField);
+      })
+      .flatMap(([oldField, newField]) => {
+        const isIgnored = ignoredFields.includes(newField);
+
+        return [
+          {
+            title: `${oldField} (Old)`,
+            dataIndex: `${newField}_old`,
+            key: `${newField}_old`,
+            width: 100,
+            alignment: "center",
           },
-        },
-      ];
-    });
-  }, [fieldMapping]);
+          {
+            title: `${newField} (New)`,
+            dataIndex: `${newField}_new`,
+            key: `${newField}_new`,
+            width: 100,
+            alignment: "center",
+            render: (text: string, record: any) => {
+              const oldValue = record[`${newField}_old`] ?? "";
+              const hasChanged =
+                String(oldValue).trim() !== String(text).trim();
+
+              return (
+                <div
+                  style={{
+                    backgroundColor:
+                      hasChanged && !isIgnored ? "#fed7d7" : "transparent",
+                    fontStyle: isIgnored ? "italic" : "normal",
+                    opacity: isIgnored ? 0.6 : 1,
+                    padding: "4px",
+                  }}
+                >
+                  {text}
+                </div>
+              );
+            },
+          },
+        ];
+      });
+  }, [fieldMapping, ignoredFields, changedFieldsSet, showOnlyChangedColumns]);
 
   return (
     <GridTable
