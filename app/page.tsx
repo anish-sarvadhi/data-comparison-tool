@@ -21,7 +21,7 @@ import { fieldMapping } from "@/lib/mapping";
 import { Select, SelectItem } from "@/components/ui/select";
 import { IgnoreFieldsSelect } from "@/components/ui/IgnoreFieldsSelect";
 import { Checkbox } from "@/components/ui/checkbox";
-// import { fieldMapping } from "@/lib/mapping";
+import { createCompareWorker } from "@/workers/compareWorkerClient";
 
 export default function DiamondComparison() {
   const [data, setData] = useState<{
@@ -31,7 +31,7 @@ export default function DiamondComparison() {
     old: { headers: [], data: [] },
     new: { headers: [], data: [] },
   });
-  // const [fieldMapping, setFieldMapping] = useState<Record<string, string>>({});
+  const [fieldMapping, setFieldMapping] = useState<Record<string, string>>({});
   const [ignoredFields, setIgnoredFields] = useState<string[]>([]);
   const [mappingConfirmed, setMappingConfirmed] = useState(false);
   const [comparisonResults, setComparisonResults] = useState<{
@@ -42,33 +42,7 @@ export default function DiamondComparison() {
   const [activeTab, setActiveTab] = useState("upload");
   const [showOnlyChangedColumns, setShowOnlyChangedColumns] =
     useState<boolean>(false);
-
-  // const handleOldFileUpload = async (file: File) => {
-  //   try {
-  //     const data = await readExcelFile(file);
-  //     console.log("Old Data:", data);
-
-  //     setOldData(data);
-  //     if (newData.length > 0) {
-  //       generateFieldMapping(data, newData);
-  //     }
-  //   } catch (error) {
-  //     console.error("Error reading old file:", error);
-  //   }
-  // };
-
-  // const handleNewFileUpload = async (file: File) => {
-  //   try {
-  //     const data = await readExcelFile(file);
-  //     console.log("New Data:", data);
-  //     setNewData(data);
-  //     if (oldData.length > 0) {
-  //       generateFieldMapping(oldData, data);
-  //     }
-  //   } catch (error) {
-  //     console.error("Error reading new file:", error);
-  //   }
-  // };
+  const [isLoading, setIsLoading] = useState(false);
 
   // const readExcelFile = (file: File): Promise<any[]> => {
   //   return new Promise((resolve, reject) => {
@@ -89,23 +63,6 @@ export default function DiamondComparison() {
   //     reader.readAsBinaryString(file);
   //   });
   // };
-
-  const handleFileUpload = async (
-    file: File,
-    type: "old" | "new",
-    headerRowIndex: number
-  ) => {
-    try {
-      const { headers, data } = await readExcelFile(file, headerRowIndex);
-      setData((prev) => ({
-        ...prev,
-        [type]: { headers, data },
-      }));
-      // generateFieldMapping(data.old.headers, data.new.headers);
-    } catch (error) {
-      console.error(`Error reading ${type} file:`, error);
-    }
-  };
 
   const readExcelFile = (
     file: File,
@@ -139,6 +96,23 @@ export default function DiamondComparison() {
       reader.onerror = (error) => reject(error);
       reader.readAsBinaryString(file);
     });
+
+  const handleFileUpload = async (
+    file: File,
+    type: "old" | "new",
+    headerRowIndex: number
+  ) => {
+    try {
+      const { headers, data } = await readExcelFile(file, headerRowIndex);
+      setData((prev) => ({
+        ...prev,
+        [type]: { headers, data },
+      }));
+      // generateFieldMapping(data.old.headers, data.new.headers);
+    } catch (error) {
+      console.error(`Error reading ${type} file:`, error);
+    }
+  };
 
   // const generateFieldMapping = (oldData: any[], newData: any[]) => {
   //   if (!oldData.length || !newData.length) return;
@@ -193,188 +167,38 @@ export default function DiamondComparison() {
   //   setActiveTab("mapping");
   // };
 
-  // const generateFieldMapping = () => {
-  //   const oldHeaders = data.old.headers;
-  //   const newHeaders = data.new.headers;
+  const generateFieldMapping = async () => {
+    setIsLoading(true);
 
-  //   if (!oldHeaders.length || !newHeaders.length) return;
+    const oldHeaders = data.old.headers;
+    const newHeaders = data.new.headers;
 
-  //   const initialMapping = oldHeaders.reduce<Record<string, string>>(
-  //     (acc, oldField) => {
-  //       acc[oldField] =
-  //         newHeaders.find(
-  //           (newField) => newField.toLowerCase() === oldField.toLowerCase()
-  //         ) || "";
-  //       return acc;
-  //     },
-  //     {}
-  //   );
+    if (!oldHeaders.length || !newHeaders.length) {
+      setIsLoading(false);
+      return;
+    }
 
-  //   setFieldMapping(initialMapping);
-  //   setActiveTab("mapping");
-  // };
+    // simulate async logic (optional)
+    await new Promise((resolve) => setTimeout(resolve, 100));
 
-  // const compareData = () => {
-  //   if (!data.old.data.length || !data.new.data.length) return;
+    const initialMapping = oldHeaders.reduce<Record<string, string>>(
+      (acc, oldField) => {
+        acc[oldField] =
+          newHeaders.find(
+            (newField) => newField.toLowerCase() === oldField.toLowerCase()
+          ) || "";
+        return acc;
+      },
+      {}
+    );
 
-  //   const changed: any[] = [];
-  //   const unchanged: any[] = [];
-  //   const notFound: any[] = [];
+    setFieldMapping(initialMapping);
+    setActiveTab("mapping");
+    setIsLoading(false);
+  };
 
-  //   // Define special number fields for comparison
-  //   const oldSpecialNumberField = "Packet Id";
-  //   const newSpecialNumberField = "Stock ID";
+  console.log("isLoading", isLoading);
 
-  //   // Create a Map for old data lookup
-  //   const oldDataMap = new Map(
-  //     data.old.data.map((item) => [String(item[oldSpecialNumberField]), item])
-  //   );
-
-  //   data.new.data.forEach((newItem) => {
-  //     const specialNumber = String(newItem[newSpecialNumberField]);
-  //     const oldItem = oldDataMap.get(specialNumber);
-
-  //     if (
-  //       !specialNumber ||
-  //       specialNumber === "undefined" ||
-  //       specialNumber === "null"
-  //     ) {
-  //       // If a diamond has no special number, add it to the not found list
-  //       notFound.push(newItem);
-  //       return;
-  //     }
-
-  //     if (!oldItem) {
-  //       changed.push({
-  //         newData: newItem,
-  //         oldData: null,
-  //         changes: ["New entry"],
-  //       });
-  //       return;
-  //     }
-
-  //     const differences: string[] = [];
-
-  //     // Compare mapped fields
-  //     Object.entries(fieldMapping).forEach(([oldField, newField]) => {
-  //       if (
-  //         String(oldItem[oldField] || "").trim() !==
-  //         String(newItem[newField] || "").trim()
-  //       ) {
-  //         differences.push(newField);
-  //       }
-  //     });
-
-  //     // Compare unmapped fields dynamically
-  //     const oldFields = Object.keys(oldItem);
-  //     const newFields = Object.keys(newItem);
-
-  //     newFields.forEach((field) => {
-  //       // If a field isn't explicitly mapped, assume it's skill-mapped
-  //       if (
-  //         !Object.values(fieldMapping).includes(field) &&
-  //         oldFields.includes(field)
-  //       ) {
-  //         if (
-  //           String(oldItem[field] || "").trim() !==
-  //           String(newItem[field] || "").trim()
-  //         ) {
-  //           differences.push(field);
-  //         }
-  //       }
-  //     });
-
-  //     if (differences.length > 0) {
-  //       changed.push({
-  //         newData: newItem,
-  //         oldData: oldItem,
-  //         changes: differences,
-  //       });
-  //     } else {
-  //       unchanged.push(newItem);
-  //     }
-  //   });
-  //   console.log("Comparison Results:", {
-  //     changed,
-  //     unchanged,
-  //     notFound,
-  //   });
-  //   // Set the comparison results
-
-  //   setComparisonResults({ changed, unchanged, notFound });
-  // };
-
-  // const compareData = () => {
-  //   if (!data.old.data.length || !data.new.data.length) return;
-
-  //   const changed: any[] = [];
-  //   const unchanged: any[] = [];
-  //   const notFound: any[] = [];
-
-  //   // Define unique identifier fields
-  //   const oldSpecialNumberField = "Packet Id";
-  //   const newSpecialNumberField = "Stock ID";
-
-  //   // Map old data for fast lookup
-  //   const oldDataMap = new Map(
-  //     data.old.data.map((item) => [String(item[oldSpecialNumberField]), item])
-  //   );
-
-  //   data.new.data.forEach((newItem) => {
-  //     const specialNumber = String(newItem[newSpecialNumberField]);
-  //     const oldItem = oldDataMap.get(specialNumber);
-
-  //     if (
-  //       !specialNumber ||
-  //       specialNumber === "undefined" ||
-  //       specialNumber === "null"
-  //     ) {
-  //       notFound.push(newItem);
-  //       return;
-  //     }
-
-  //     if (!oldItem) {
-  //       changed.push({
-  //         newData: newItem,
-  //         oldData: null,
-  //         changes: ["New entry"],
-  //       });
-  //       return;
-  //     }
-
-  //     // Check for field changes
-  //     const differences = Object.entries(fieldMapping)
-  //       .map(([oldField, newField]) => {
-  //         const oldValue = String(oldItem[oldField] || "").trim();
-  //         const newValue = String(newItem[newField] || "").trim();
-
-  //         return oldValue !== newValue
-  //           ? { field: oldField, oldValue, newValue }
-  //           : null;
-  //       })
-  //       .filter(Boolean);
-
-  //     if (differences.length > 0) {
-  //       changed.push({
-  //         newData: newItem,
-  //         oldData: oldItem,
-  //         changes: differences,
-  //       });
-  //     } else {
-  //       unchanged.push(newItem);
-  //     }
-  //   });
-
-  //   console.log("Comparison Results:", {
-  //     changed,
-  //     unchanged,
-  //     notFound,
-  //   });
-
-  //   setComparisonResults({ changed, unchanged, notFound });
-  // };
-
-  // ------  22222
   // const compareData = () => {
   //   setMappingConfirmed(true);
   //   if (!fieldMapping) return;
@@ -384,16 +208,14 @@ export default function DiamondComparison() {
   //   const unchanged: any[] = [];
   //   const notFound: any[] = [];
 
-  //   const oldSpecialNumberField = "Packet Id";
-  //   const newSpecialNumberField = "Stock ID";
+  //   const oldSpecialNumberField = "Finish No";
+  //   const newSpecialNumberField = "Finish No";
 
-  //   // Convert old data into a Map for quick lookup
   //   const oldDataMap = new Map(
   //     data.old.data.map((item) => [String(item[oldSpecialNumberField]), item])
   //   );
 
-  //   // Chunk processing variables
-  //   const batchSize = 1000; // Process 1000 diamonds at a time
+  //   const batchSize = 1000;
   //   let index = 0;
 
   //   const processChunk = () => {
@@ -421,8 +243,9 @@ export default function DiamondComparison() {
   //         return;
   //       }
 
-  //       // Check for differences
+  //       // Compare excluding ignored fields
   //       const differences = Object.entries(fieldMapping)
+  //         .filter(([_, newField]) => !ignoredFields.includes(newField))
   //         .map(([oldField, newField]) => {
   //           const oldValue = String(oldItem[oldField] || "").trim();
   //           const newValue = String(newItem[newField] || "").trim();
@@ -444,102 +267,44 @@ export default function DiamondComparison() {
   //     });
 
   //     index += batchSize;
-
-  //     // Update UI with current results (partial data)
   //     setComparisonResults({ changed, unchanged, notFound });
   //     setActiveTab("comparison");
 
   //     if (index < data.new.data.length) {
-  //       // Schedule next chunk in the next event loop to avoid freezing UI
   //       setTimeout(processChunk, 0);
   //     } else {
-  //       console.log("Comparison completed! ✅");
+  //       console.log("✅ Comparison complete.");
   //     }
   //   };
 
-  //   // Start processing in chunks
   //   processChunk();
   // };
 
   const compareData = () => {
     setMappingConfirmed(true);
-    if (!fieldMapping) return;
     if (!data.old.data.length || !data.new.data.length) return;
 
-    const changed: any[] = [];
-    const unchanged: any[] = [];
-    const notFound: any[] = [];
+    const worker = createCompareWorker();
 
-    const oldSpecialNumberField = "Packet Id";
-    const newSpecialNumberField = "Stock ID";
-
-    const oldDataMap = new Map(
-      data.old.data.map((item) => [String(item[oldSpecialNumberField]), item])
-    );
-
-    const batchSize = 1000;
-    let index = 0;
-
-    const processChunk = () => {
-      const chunk = data.new.data.slice(index, index + batchSize);
-
-      chunk.forEach((newItem) => {
-        const specialNumber = String(newItem[newSpecialNumberField]);
-        const oldItem = oldDataMap.get(specialNumber);
-
-        if (
-          !specialNumber ||
-          specialNumber === "undefined" ||
-          specialNumber === "null"
-        ) {
-          notFound.push(newItem);
-          return;
-        }
-
-        if (!oldItem) {
-          changed.push({
-            newData: newItem,
-            oldData: null,
-            changes: ["New entry"],
-          });
-          return;
-        }
-
-        // Compare excluding ignored fields
-        const differences = Object.entries(fieldMapping)
-          .filter(([_, newField]) => !ignoredFields.includes(newField))
-          .map(([oldField, newField]) => {
-            const oldValue = String(oldItem[oldField] || "").trim();
-            const newValue = String(newItem[newField] || "").trim();
-            return oldValue !== newValue
-              ? { field: oldField, oldValue, newValue }
-              : null;
-          })
-          .filter(Boolean);
-
-        if (differences.length > 0) {
-          changed.push({
-            newData: newItem,
-            oldData: oldItem,
-            changes: differences,
-          });
-        } else {
-          unchanged.push(newItem);
-        }
-      });
-
-      index += batchSize;
+    worker.onmessage = (e) => {
+      const { changed, unchanged, notFound } = e.data;
       setComparisonResults({ changed, unchanged, notFound });
       setActiveTab("comparison");
 
-      if (index < data.new.data.length) {
-        setTimeout(processChunk, 0);
-      } else {
-        console.log("✅ Comparison complete.");
-      }
+      worker.terminate();
     };
 
-    processChunk();
+    worker.onerror = (err) => {
+      console.error("Comparison worker error:", err);
+      worker.terminate();
+    };
+
+    worker.postMessage({
+      oldData: data.old.data,
+      newData: data.new.data,
+      fieldMapping,
+      ignoredFields,
+    });
   };
 
   const comparisonTableData = useMemo(() => {
@@ -561,21 +326,19 @@ export default function DiamondComparison() {
     });
   }, [comparisonResults.changed, fieldMapping]);
 
-  console.log("fieldMapping", fieldMapping);
-
   return (
     <div className="container mx-auto py-8">
       <h1 className="text-3xl font-bold mb-6">Diamond Data Comparison Tool</h1>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="upload">Upload Files</TabsTrigger>
-          {/* <TabsTrigger
+          <TabsTrigger
             value="mapping"
             disabled={!data?.old.headers.length || !data?.new.headers.length}
           >
             Field Mapping
-          </TabsTrigger> */}
+          </TabsTrigger>
           <TabsTrigger value="comparison" disabled={!mappingConfirmed}>
             Comparison Results
           </TabsTrigger>
@@ -612,12 +375,15 @@ export default function DiamondComparison() {
 
           {data?.old?.headers?.length > 0 && data?.new?.headers?.length > 0 && (
             <div className="mt-6 flex justify-center">
-              <Button onClick={compareData}>Continue to Field Mapping</Button>
+              {/* <Button onClick={compareData}>Continue to Field Mapping</Button> */}
+              <Button onClick={generateFieldMapping} disabled={isLoading}>
+                {isLoading ? "Generating..." : "Continue to Field Mapping"}
+              </Button>
             </div>
           )}
         </TabsContent>
 
-        {/* <TabsContent value="mapping">
+        <TabsContent value="mapping">
           <Card>
             <CardHeader>
               <CardTitle>Field Mapping</CardTitle>
@@ -636,7 +402,7 @@ export default function DiamondComparison() {
               />
             </CardContent>
           </Card>
-        </TabsContent> */}
+        </TabsContent>
 
         <TabsContent value="comparison">
           <div className="space-y-6">
